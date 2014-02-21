@@ -1,0 +1,682 @@
+<head>
+
+<title>這是一個台灣蛙類(無尾目)的互動式檢索工具</title>
+
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+
+<style>
+.key_choices:hover, .filter_values:hover{ 
+  background-color:chartreuse;
+  cursor: pointer;
+}
+
+.key_choices_idontknow:hover { 
+  background-color:crimson;
+  cursor: pointer;
+}
+
+
+.has_value { 
+  background-color:yellow;
+}
+
+
+#key_choices_area {
+  position: absolute;
+  width: 24%;
+  left: 1%;
+}
+
+#res_species {
+  position: absolute;
+  width: 48%;
+  left: 26%;
+}
+
+#keyVal {
+  position: absolute;
+  width: 24%;
+  left: 75%;
+  top: 30px;
+}
+
+.species_img_grid {
+  width:90%;
+}
+
+</style>
+
+
+</head>
+  
+
+<script src="http://code.jquery.com/jquery-1.11.0.js"></script>
+<script src="http://isotope.metafizzy.co/jquery.isotope.min.js"></script>
+
+<br/>
+<table>
+<tr>
+<td><div id='previous_choice' style='cursor:pointer'><u>前一個特徵</u></div></td>
+<td><div id='char_name'></div></td>
+<td><div id='next_choice' style='cursor:pointer'><u>下一個特徵</u></div></td>
+</tr>
+</table>
+
+<div id="key_choices_area"></div>
+<div id="res_species"></div>
+<div id="keyVal"></div>
+
+<script>
+
+// Initialize
+$('#res_species').isotope({
+  // options
+  itemSelector : '.species_grid',
+  layoutMode : 'fitRows'
+});
+
+
+
+$(document).delegate('.onmyownInput', 'keydown', function() {
+  document.getElementById('onmyownRadio').checked = true;
+})
+
+$(document).delegate('.key_choices', 'click', function () {
+  document.getElementById('distinctValueRadio').checked = true;
+  foo(this.id);
+  runKeys('+');
+}); 
+
+$(document).delegate('.filter_values', 'click', function () {
+  var ffss = 5566;
+  var frags = this.id.split("_");
+  indexOfKey = frags[1];
+  runKeys('=');
+});
+
+
+var idontknowOp;
+$(document).delegate('.key_choices_idontknow', 'click', function () {
+  idontknowOp = '=';
+  document.getElementById('distinctValueRadio').checked = true;
+  foo(this.id);
+  runKeys(idontknowOp);
+}); 
+
+var isotopeSpecies = null;
+function isEmpty(obj) {
+  //  null and undefined are "empty"
+  if (obj == null) return true;
+
+  // Assume if it has a length property with a non-zero value
+  // that that property is correct.
+  if (obj.length > 0)    return false;
+  if (obj.length === 0)  return true;
+
+  // Otherwise, does it have any properties of its own?
+  // Note that this doesn't handle
+  // toString and valueOf enumeration bugs in IE < 9
+  for (var key in obj) {
+    if (hasOwnProperty.call(obj, key)) return false;
+  }
+
+  return true;
+}
+
+function foo (rVal) {
+  if (isEmpty(rVal)) {
+    var r = document.getElementsByName('char_radio');
+    for (i=0; i<r.length; i++) {
+      if (r[i].checked) {
+        rVal = r[i].value;
+        var vFrags = rVal.split('_')
+        selectedKey[vFrags[0]] = vFrags[1];
+        /* 好像沒P用了這三行
+        if ((vFrags[1] == 'idontknow')||(vFrags[1] == 'onmyown')) {
+          continue;
+        }
+        */
+      }
+    }
+  }
+  var q = getFilterQuery(rVal);
+  if (q != "") {
+    var toShow = query(null, q);
+    var snames = [];
+    for (i=0; i<toShow.length; i++) {
+      var uri = toShow[i].s.value;
+      var uriFrags = uri.split(/[\#\/]/);
+      var namecode = uriFrags.pop();
+      
+      var imgSetURL = "http://api.taibif.tw/catalogue/images/taieol/" + namecode;
+      var imgObjs = [];
+       
+      $.ajax(imgSetURL, {
+        async: false,
+        cache: false,
+        success: function (data, txtStatus, jqXHR) {
+          imgObjs = data;
+        },
+        dataType: 'json'
+      });
+
+      if (imgObjs[0] != undefined) {
+        var imgURL = imgObjs[0].url;
+        var imgHtml = "<img src='"+imgURL+"' alt='"+toShow[i].sname.value+"' title='"+toShow[i].sname.value+"' class='species_img_grid'/>";
+      }
+      else {
+        var imgHtml = "["+toShow[i].sname.value+"的圖片]";
+      }
+      imgHtml = "<div class='species_grid'><span>"+toShow[i].sname.value+"</span><div>" + imgHtml + "</div></div>";
+      snames.push(imgHtml);
+    }
+    
+    if (snames.length < 1) {
+      var imgHtml = "<img src='no.jpg' alt='沒有了' title='沒有了' class='species_img_grid'/>";
+      imgHtml = "<div class='species_grid'><span>沒有了</span><div>" + imgHtml + "</div></div>";
+      snames.push(imgHtml);
+    }
+    
+    $('#res_species').html(snames.join("\n"));
+  }
+  else {
+    $('#res_species').html('');
+  }
+
+  $('#res_species').isotope('destroy');
+  $('#res_species').isotope({
+    // options
+    itemSelector : '.species_grid',
+    layoutMode : 'cellsByRow'
+  }).isotope( 'reLayout');
+}
+
+$('#next_choice').click(function (e) {
+  foo();
+  runKeys('+');
+});
+
+
+$('#previous_choice').click(function (e) {
+  foo();
+  runKeys('-');
+});
+
+
+var keys = [];
+
+//+ Jonas Raoni Soares Silva
+//@ http://jsfromhell.com/array/shuffle [v1.0]
+function shuffle(o){ //v1.0
+  for(var j, x, i = o.length; i; j = Math.floor(Math.random() * i), x = o[--i], o[i] = o[j], o[j] = x);
+  return o;
+};
+
+function query (ep, q) {
+  var b = [];
+  if ((ep == null)||(ep == '')||(ep == undefined)) {
+    ep = "http://ecowlim.tfri.gov.tw/sparql/query";
+  }
+  $.ajax(ep, {
+    async: false,
+    cache: false,
+    data: {query: q, format: 'json'},
+    success: function (data, txtStatus, jqXHR) {
+      b = data.results.bindings;
+    },
+    dataType: 'json'
+  });
+  var ffss = 5566;
+  return b;
+}
+
+
+
+var prefixSet = "prefix : <http://lod.tw/rdf/taicol.n3#> "
+    +"prefix tsp: <http://taibif.tw/lod/resource/Species/> "
+    +"prefix spv: <http://taibif.tw/lod/resource/vocab/> "
+    +"prefix dbp: <http://dbpedia.org/resource/> "
+    +"prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> "
+    +"prefix xsd: <http://www.w3.org/2001/XMLSchema#>";
+    
+var selectAllFromTpl = "select distinct * "
+    +"from <http://lod.tw/trashmai/frogs.n3> "
+    +"{ "
+    +"  ::placeholder:: "
+    +"} ";
+
+var selectSFromTpl = "select distinct ?s ?sname "
+    +"from <http://lod.tw/trashmai/frogs.n3> "
+    +"{ "
+    +"  ::placeholder:: "
+    +"} ";
+
+var subqs = {};
+var filterVal = {};
+
+
+function getFilterQuery(rVal) {
+  // rVal means value from input typed "radio"
+  var subqFilterString = "";
+  if (getFilterQuery.q == undefined) {
+    getFilterQuery.q = "";
+  }
+  if (isEmpty(rVal)) return getFilterQuery.q;
+  var vFrags = rVal.split('_');
+  var iok = vFrags[0];
+  if ((vFrags[1] == 'idontcare')||(vFrags[1] == 'exists')) {
+    return getFilterQuery.q;
+  }
+  if (vFrags[1] == 'idontknow') {
+//    return getFilterQuery.q;
+    if (subqs[iok] != undefined) {
+      delete subqs[iok];
+      delete filterVal[iok];
+      keyChars[iok] = "<div class='filter_values' id='fv_"+iok+"'>"+keys[iok].char+":</div>";
+    }
+    else {
+      idontknowOp = '+';
+    }
+    subq = "";
+    if (isEmpty(subqs)) {
+      subqFilterString = "";
+      getFilterQuery.q = "";
+      return getFilterQuery.q;
+    }
+  }
+  else {
+    if (vFrags[1] == 'onmyown') {
+      var f = filterVar[iok][0];
+    }
+    else {
+      var f = filterVar[iok][vFrags[1]];
+    }
+
+    switch (f.type) {
+      case "http://lod.tw/rdf/taicol.n3#RangeValueDescription":
+
+        if (vFrags[1] == 'onmyown') {
+          var dlmt = document.getElementsByName(iok+'_onmyownValue')[0].value.match(/[^\d.]+/);
+          var omoFrags = document.getElementsByName(iok+'_onmyownValue')[0].value.split(dlmt);
+          f.from = omoFrags[0];
+          f.to = omoFrags[1];
+          if (f.to == undefined) {
+            f.to = f.from;
+          }
+          f.literalUnit = document.getElementsByName(iok+'_onmyownUnit')[0].value;
+          f.literalValue = "與" + f.from + "~" + f.to + ((f.literalUnit == undefined)?"":f.literalUnit) + "有重疊";
+        }
+
+        var subq = "{ "
+          +"?s rdfs:label ?sname. "
+          +"?s :hasDescription ?d"+iok+". "
+          +"?d"+iok+" :character ?char"+iok+". "
+          +"?d"+iok+" a ?type"+iok+". "
+          +"?d"+iok+" :from ?from"+iok+". "
+          +"?d"+iok+" :to ?to"+iok+". "
+          +"optional { "
+          +"  ?d"+iok+" :literalUnit ?literalUnit"+iok+". "
+          +"} "
+          +"optional { "
+          +"  ?d"+iok+" :majorFrom ?majorFrom"+iok+". "
+          +"  ?d"+iok+" :majorTo ?majorTo"+iok+". "
+          +"} "
+          +"optional { "
+          +"  ?d"+iok+" :restriction ?r"+iok+". "
+          +"} "
+          +"filter (?char"+iok+"='"+f.char+"') "
+          +"filter (xsd:float(?from"+iok+") <= "+f.to+") "
+          +"filter (xsd:float(?to"+iok+") >= "+f.from+") "
+          +((f.literalUnit=='')?"":("filter (?literalUnit"+iok+" = '"+f.literalUnit+"') "))
+          +"filter (str(?type"+iok+") = '"+f.type+"') "
+          +"}\n";
+        break;
+      case "http://lod.tw/rdf/taicol.n3#SimpleValueDescription":
+      case "http://lod.tw/rdf/taicol.n3#LiteralValueDescription":
+        if (vFrags[1] == 'onmyown') {
+          f.value = document.getElementsByName(iok+'_onmyownValue')[0].value;
+          f.literalUnit = document.getElementsByName(iok+'_onmyownUnit')[0].value;
+          f.literalValue = document.getElementsByName(iok+'_onmyownValue')[0].value + ((f.literalUnit == undefined)?"":f.literalUnit);
+        }
+
+        var subq = "{ "
+          +"?s rdfs:label ?sname. "
+          +"?s :hasDescription ?d"+iok+". "
+          +"?d"+iok+" :character ?char"+iok+". "
+          +"?d"+iok+" a ?type"+iok+". "
+          +"?d"+iok+"  :value ?value"+iok+". "
+          +"optional { "
+          +"  ?d"+iok+" :literalUnit ?literalUnit"+iok+". "
+          +"} "
+          +"optional { "
+          +"  ?d"+iok+" :majorFrom ?majorFrom"+iok+". "
+          +"  ?d"+iok+" :majorTo ?majorTo"+iok+". "
+          +"} "
+          +"optional { "
+          +"  ?d"+iok+" :restriction ?r"+iok+". "
+          +"} "
+          +"filter (?char"+iok+"='"+f.char+"') "
+          +"filter (?value"+iok+"='"+f.value+"')"
+          +((f.literalUnit=='')?"":("filter (?literalUnit"+iok+" = '"+f.literalUnit+"') "))
+          +"filter (str(?type"+iok+") = '"+f.type+"') "
+          +"}\n";
+        break;
+      default:
+        subq = "";
+        break;
+    }
+  }
+  if (subq != "") {
+    filterVal[iok] = f;
+    subqs[iok] = subq;
+  }
+
+  $.each (subqs, function (i, v) {
+    subqFilterString += v + "\n";
+  });
+
+  getFilterQuery.q = prefixSet + selectSFromTpl.replace(/\:\:placeholder\:\:/, subqFilterString);
+  return getFilterQuery.q;
+}
+
+
+
+function getQueryByKey(iok) {
+  var subqFilterString = "";
+  key = keys[iok];
+  switch (key.type) {
+    case "http://lod.tw/rdf/taicol.n3#RangeValueDescription":
+      var subq = "{ "
+        +"?s :hasDescription ?d. "
+        +"?d :character ?char.  "
+        +"?d a ?type. "
+        +"?d :from ?from. "
+        +"?d :to ?to. "
+        +"optional { "
+        +"  ?d :literalUnit ?literalUnit. "
+        +"} "
+        +"optional { "
+        +"  ?d :majorFrom ?majorFrom. "
+        +"  ?d :majorTo ?majorTo. "
+        +"} "
+        +"optional { "
+        +"  ?d :restriction ?r. "
+        +"} "
+        +"filter (?char='"+key.char+"') "
+        +"filter (str(?type) = '"+key.type+"') "
+        +"}\n";
+      break;
+    case "http://lod.tw/rdf/taicol.n3#SimpleValueDescription":
+    case "http://lod.tw/rdf/taicol.n3#LiteralValueDescription":
+      var subq = "{ "
+        +"?s :hasDescription ?d. "
+        +"?d :character ?char. "
+        +"?d a ?type. "
+        +"?d  :value ?value. "
+        +"optional { "
+        +"  ?d :literalUnit ?literalUnit. "
+        +"} "
+        +"optional { "
+        +"  ?d :majorFrom ?majorFrom. "
+        +"  ?d :majorTo ?majorTo. "
+        +"} "
+        +"optional { "
+        +"  ?d :restriction ?r. "
+        +"} "
+        +"filter (?char='"+key.char+"') "
+        +"filter (str(?type) = '"+key.type+"') "
+        +"}\n";
+      break;
+    default:
+      subq = "";
+      break;
+  }
+
+  $.each (subqs, function (i, v) {
+    subqFilterString += v + "\n";
+  });
+
+  var q = prefixSet + selectAllFromTpl.replace(/\:\:placeholder\:\:/, subq);
+  /* 這是聯動式檢索選項, 若要使用此功能 
+  // "runKeys" 函式中註名的部分也要一起 uncomment .
+  var q = prefixSet + selectAllFromTpl.replace(/\:\:placeholder\:\:/, subq + subqFilterString);
+  //*/
+  
+  return q;
+}
+
+
+var filterVar = {};
+var selectedKey = {};
+function renderChoices (toShow) {
+  var s = [];
+  var mergedChoices = [];
+  for (i=0; i<toShow.length; i++) {
+    if (toShow[i].type != undefined)
+    switch (toShow[i].type.value) {
+      case "http://lod.tw/rdf/taicol.n3#SimpleValueDescription" :
+      case "http://lod.tw/rdf/taicol.n3#LiteralValueDescription" :
+        if (s.indexOf(toShow[i].s.value) == -1) {
+          var indexOfS = s.push(toShow[i].s.value);
+          indexOfS = indexOfS - 1;
+        }
+        else {
+          var indexOfS = s.indexOf(toShow[i].s.value);
+        }
+        if (mergedChoices[indexOfS] == undefined) {
+          mergedChoices[indexOfS] = {
+            s: toShow[i].s.value,
+            char: toShow[i].char.value,
+            value: toShow[i].value.value,
+            literalValue: toShow[i].value.value + ((toShow[i].literalUnit == undefined)?"":toShow[i].literalUnit.value),
+            literalUnit: ((toShow[i].literalUnit == undefined)?"":toShow[i].literalUnit.value),
+            type: toShow[i].type.value
+          };
+        }
+        break;
+      case "http://lod.tw/rdf/taicol.n3#RangeValueDescription":
+        if (s.indexOf(toShow[i].s.value) == -1) {
+          var indexOfS = s.push(toShow[i].s.value);
+          indexOfS = indexOfS - 1;
+        }
+        else {
+          var indexOfS = s.indexOf(toShow[i].s.value);
+        }
+        if (mergedChoices[indexOfS] == undefined) {
+          mergedChoices[indexOfS] = {
+            s: toShow[i].s.value,
+            char: toShow[i].char.value,
+            from: toShow[i].from.value,
+            to: toShow[i].to.value,
+            literalValue: "與" + toShow[i].from.value + "~" + toShow[i].to.value + ((toShow[i].literalUnit == undefined)?"":toShow[i].literalUnit.value) + "有重疊",
+            literalUnit: ((toShow[i].literalUnit == undefined)?"":toShow[i].literalUnit.value),
+            type: toShow[i].type.value
+          };
+        }
+        else {
+          if (parseFloat(mergedChoices[indexOfS].from) > parseFloat(toShow[i].from.value)) {
+            mergedChoices[indexOfS].from = toShow[i].from.value;
+            mergedChoices[indexOfS].literalValue = "與" + mergedChoices[indexOfS].from + "~" + mergedChoices[indexOfS].to + mergedChoices[indexOfS].literalUnit + "有重疊";
+          }
+          if (parseFloat(mergedChoices[indexOfS].to) < parseFloat(toShow[i].to.value)) {
+            mergedChoices[indexOfS].to = toShow[i].to.value;
+            mergedChoices[indexOfS].literalValue = "與" + mergedChoices[indexOfS].from + "~" + mergedChoices[indexOfS].to + mergedChoices[indexOfS].literalUnit + "有重疊";
+          }
+        }
+        break;
+    }
+  }
+
+  document.getElementById('char_name').innerHTML = "<h2>"+keys[indexOfKey].char+"</h2>";
+  var choices_html = "<input type='radio' id='distinctValueRadio' name='char_radio' value='"+indexOfKey+"_exists'/>從現有資料中選一個值";
+  var charExists = [];
+  for (i=0; i<mergedChoices.length; i++) {
+    if (filterVar[indexOfKey] == undefined) {
+      filterVar[indexOfKey] = {};
+    }
+    filterVar[indexOfKey][i] = mergedChoices[i];
+    if (selectedKey[indexOfKey] == i) {
+      var checkedString = 'checked';
+    }
+    else {
+      var checkedString = '';
+    }
+
+    var keyTxt = "您看到的生物" + mergedChoices[i].char + ":" + mergedChoices[i].literalValue;
+    if (charExists.indexOf(keyTxt) == -1) {
+      choices_html += "<div  class='key_choices' id='"+indexOfKey+"_"+i+"'>" + mergedChoices[i].literalValue + "</div>";
+      charExists.push(keyTxt);
+    }
+  }
+
+  
+  if (charExists.length < 1) {
+    choices_html += '<div class="key_choices" id="'+indexOfKey+'_idontcare">這個特徵好像還沒處理好ㄆㄆ</div>';
+  }
+  choices_html += "<div class='key_choices_idontknow' id='"+indexOfKey+"_idontknow'>我不知道</div>";
+  if (mergedChoices[0] != undefined) {
+    choices_html += "<input id='onmyownRadio' type='radio' name='char_radio' value='"+indexOfKey+"_onmyown'/>我要自己輸入<br/>數值<input class='onmyownInput' name='"+indexOfKey+"_onmyownValue'/><br/>單位<input class='onmyownInput' name='"+indexOfKey+"_onmyownUnit' value='"+mergedChoices[0].literalUnit+"'/>";
+  }
+  $('#key_choices_area').html(choices_html);
+
+}
+
+
+var keyChars = {};
+function renderFilters() {
+  var html = "";
+  $.each(filterVal, function(i, f) {
+    var fDiv = "<div class='filter_values has_value' id='fv_"+i+"'>"+f.char+": <b>"+f.literalValue+"</b></div>";
+    keyChars[i] = fDiv;
+  });
+  
+  $.each(keyChars, function(i, div) {
+    html = html + div + "\n";
+  });
+  
+  $('#keyVal').html(html);
+}
+
+
+
+
+var restKeys = null;
+var indexOfKey = 0;
+function runKeys(op) {
+
+  if (op=='=') {
+  }
+  else if (op=='+') {
+    if (parseInt(indexOfKey) + 1 > keys.length - 1) {
+      alert("到底了!!");
+    }
+    else {
+      indexOfKey = parseInt(indexOfKey) + 1;
+    }
+  }
+  else if (op=='-') {
+    if (parseInt(indexOfKey) - 1 < 0) {
+      alert("到頭了!!");
+    }
+    else {
+      indexOfKey = parseInt(indexOfKey) - 1;
+    }
+  }
+
+  var q = getQueryByKey(indexOfKey);
+  var toShow = query(null, q); // set to null to use default value
+  
+  /*
+  // 聯動式檢索選項請 uncomment 以下部分
+  if (!isEmpty(toShow)) {
+    if (!isEmpty(toShow[0].char)) {
+      renderChoices(toShow);
+    }
+    else {
+      if (op != '=') {
+        if ((indexOfKey - 1 < 0)||(indexOfKey + 1 > keys.length - 1)) {
+          if (op == '-') {
+            alert("到頭了!!");
+            op = '+';
+          }
+          else if (op == '+') {
+            alert("到底了!!");
+            op = '-';
+          }
+        }
+        runKeys(op);
+      }
+      else {
+        runKeys('+');
+      }
+    }
+  }
+  else {
+    if (op != '=') {
+      if ((indexOfKey - 1 < 0)||(indexOfKey + 1 > keys.length - 1)) {
+        if (op == '-') {
+          alert("到頭了!!");
+          op = '+';
+        }
+        else if (op == '+') {
+          alert("到底了!!");
+          op = '-';
+        }
+      }
+      runKeys(op);
+    }
+    else {
+      runKeys('+');
+    }
+  }
+  */
+
+  // 聯動式檢索選項請 comment 下一行
+  renderChoices(toShow);
+  renderFilters();
+}
+
+
+
+function getKeys() {
+  var q = "prefix : <http://lod.tw/rdf/taicol.n3#> ";
+  q += "prefix tsp: <http://taibif.tw/lod/resource/Species/> ";
+  q += "prefix spv: <http://taibif.tw/lod/resource/vocab/> ";
+  q += "prefix dbp: <http://dbpedia.org/resource/> ";
+  q += "prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> ";
+  q += "select distinct ?char ?type ";
+  q += "from <http://lod.tw/trashmai/frogs.n3> ";
+  q += "{ ";
+  q += "  ?s :hasDescription [ ";
+  q += "    :character ?char; ";
+  q += "    a ?type; ";
+  q += "  ];. ";
+  q += "} ";
+  $.post("http://ecowlim.tfri.gov.tw/sparql/query", {query : q, format: 'json'}, function(data, getKeysStatus, getKeysXhr) {
+    var ffss = 5566;
+    var tmpKeys = [];
+    data.results.bindings.forEach(function (b) {
+      var descriptionKey = {char: b.char.value, type: b.type.value};
+      tmpKeys.push(descriptionKey);
+    });
+    keys = shuffle(tmpKeys);
+
+    $.each(keys, function(i, k) {
+      var kDiv = "<div class='filter_values' id='fv_"+i+"'>"+k.char+":</div>";
+      keyChars[i] = kDiv;
+    });
+    var html = "";  
+    $.each(keyChars, function(i, div) {
+      html = html + div + "\n";
+    });
+    $('#keyVal').html(html);
+  
+    runKeys('=');
+  }, 'json');
+  
+
+}
+
+getKeys();
+
+</script>
