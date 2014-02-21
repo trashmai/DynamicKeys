@@ -33,11 +33,19 @@
   left: 26%;
 }
 
+#submit_onmyownVal {
+  cursor: pointer;
+}
+
 #keyVal {
   position: absolute;
   width: 24%;
   left: 75%;
   top: 30px;
+}
+
+.no_species_img_grid {
+  width:100%;
 }
 
 .species_img_grid {
@@ -79,12 +87,13 @@ $('#res_species').isotope({
 
 $(document).delegate('.onmyownInput', 'keydown', function() {
   document.getElementById('onmyownRadio').checked = true;
+  $('#submit_onmyownVal').css('background-color', 'red');
 })
 
 $(document).delegate('.key_choices', 'click', function () {
   document.getElementById('distinctValueRadio').checked = true;
   foo(this.id);
-  runKeys('+');
+  runKeys('=');
 }); 
 
 $(document).delegate('.filter_values', 'click', function () {
@@ -160,19 +169,26 @@ function foo (rVal) {
         dataType: 'json'
       });
 
+      var imgAuthor = "麥舘碩";
+      var imgLicense = "CC-0";
       if (imgObjs[0] != undefined) {
         var imgURL = imgObjs[0].url;
+	imgAuthor = imgObjs[0].author;
+	imgLicense = "CC-" + imgObjs[0].license;
         var imgHtml = "<img src='"+imgURL+"' alt='"+toShow[i].sname.value+"' title='"+toShow[i].sname.value+"' class='species_img_grid'/>";
       }
       else {
-        var imgHtml = "["+toShow[i].sname.value+"的圖片]";
+        var imgHtml = "<img src='nopic.jpg' alt='沒有圖片, 等你貢獻^.&lt;' title='沒有圖片, 等你貢獻^.&lt;' class='no_species_img_grid'/>";
       }
-      imgHtml = "<div class='species_grid'><span>"+toShow[i].sname.value+"</span><div>" + imgHtml + "</div></div>";
+      imgHtml = "<div class='species_grid'><a target='_blank' href='http://taibnet.sinica.edu.tw/chi/taibnet_species_detail.php?name_code="+namecode+"'>"+toShow[i].sname.value+"</a>"
+		+"-<a target='_blank' href='http://taibif.tw/lod/resource/Species/"+namecode+"'>LOD</a>"
+		+ "<div>" + imgHtml + "</div><span>"+imgAuthor+"</span> <span>"+imgLicense+"</span>"
+		+"</div>";
       snames.push(imgHtml);
     }
     
     if (snames.length < 1) {
-      var imgHtml = "<img src='no.jpg' alt='沒有了' title='沒有了' class='species_img_grid'/>";
+      var imgHtml = "<img src='noresult.jpg' alt='沒有了' title='沒有了' class='species_img_grid'/>";
       imgHtml = "<div class='species_grid'><span>沒有了</span><div>" + imgHtml + "</div></div>";
       snames.push(imgHtml);
     }
@@ -187,9 +203,15 @@ function foo (rVal) {
   $('#res_species').isotope({
     // options
     itemSelector : '.species_grid',
-    layoutMode : 'cellsByRow'
+//    layoutMode : 'cellsByRow'
+//    layoutMode : 'masonry'
   }).isotope( 'reLayout');
 }
+
+$(document).delegate('#submit_onmyownVal', 'click', function (e) {
+  foo();
+  runKeys('+');
+});
 
 $('#next_choice').click(function (e) {
   foo();
@@ -510,6 +532,7 @@ function renderChoices (toShow) {
   document.getElementById('char_name').innerHTML = "<h2>"+keys[indexOfKey].char+"</h2>";
   var choices_html = "<input type='radio' id='distinctValueRadio' name='char_radio' value='"+indexOfKey+"_exists'/>從現有資料中選一個值";
   var charExists = [];
+  var charExistsKeepIndex = [];
   for (i=0; i<mergedChoices.length; i++) {
     if (filterVar[indexOfKey] == undefined) {
       filterVar[indexOfKey] = {};
@@ -522,20 +545,27 @@ function renderChoices (toShow) {
       var checkedString = '';
     }
 
-    var keyTxt = "您看到的生物" + mergedChoices[i].char + ":" + mergedChoices[i].literalValue;
+    // var keyTxt = mergedChoices[i].char + ":" + mergedChoices[i].literalValue;
+    var keyTxt = mergedChoices[i].literalValue;
     if (charExists.indexOf(keyTxt) == -1) {
-      choices_html += "<div  class='key_choices' id='"+indexOfKey+"_"+i+"'>" + mergedChoices[i].literalValue + "</div>";
       charExists.push(keyTxt);
     }
+    charExistsKeepIndex.push(keyTxt);
   }
 
-  
   if (charExists.length < 1) {
     choices_html += '<div class="key_choices" id="'+indexOfKey+'_idontcare">這個特徵好像還沒處理好ㄆㄆ</div>';
   }
+  else {
+    charExists.sort();
+    for (i=0; i<charExists.length; i++) {
+      choices_html += "<div  class='key_choices' id='"+indexOfKey+"_"+charExistsKeepIndex.indexOf(charExists[i])+"'>" + charExists[i] + "</div>";
+    }
+  }
+  
   choices_html += "<div class='key_choices_idontknow' id='"+indexOfKey+"_idontknow'>我不知道</div>";
   if (mergedChoices[0] != undefined) {
-    choices_html += "<input id='onmyownRadio' type='radio' name='char_radio' value='"+indexOfKey+"_onmyown'/>我要自己輸入<br/>數值<input class='onmyownInput' name='"+indexOfKey+"_onmyownValue'/><br/>單位<input class='onmyownInput' name='"+indexOfKey+"_onmyownUnit' value='"+mergedChoices[0].literalUnit+"'/>";
+    choices_html += "<input id='onmyownRadio' type='radio' name='char_radio' value='"+indexOfKey+"_onmyown'/>我要自己輸入  <span id='submit_onmyownVal'><u>填好送出</u></span><br/>數值<input class='onmyownInput' name='"+indexOfKey+"_onmyownValue'/><br/>單位<input class='onmyownInput' name='"+indexOfKey+"_onmyownUnit' value='"+mergedChoices[0].literalUnit+"'/>";
   }
   $('#key_choices_area').html(choices_html);
 
